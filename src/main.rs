@@ -118,9 +118,7 @@ fn run_test(executable: &Path, input_path: &Path, output_path: &Path, timeout_ms
     {
         use std::io::Write;
         if let Some(ref mut stdin) = child.stdin {
-            stdin
-                .write_all(&input_content)
-                .expect("Failed to write to stdin");
+            let _ = stdin.write_all(&input_content);
         }
     }
 
