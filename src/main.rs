@@ -18,8 +18,12 @@ struct Args {
 
     #[arg(help = "Path to the directory containing test files")]
     tests_dir: String,
+
+    #[arg(help = "Specific test number to run (zero-padded agnostic)")]
+    test_number: Option<String>,
 }
 
+#[derive(Clone)]
 struct TestCase {
     input_file: String,
     output_file: String,
@@ -34,6 +38,15 @@ fn extract_test_number(filename: &str) -> Option<String> {
         Some(digits)
     } else {
         None
+    }
+}
+
+fn normalize_test_number(num: &str) -> String {
+    let normalized = num.trim_start_matches('0').to_string();
+    if normalized.is_empty() {
+        "0".to_string()
+    } else {
+        normalized
     }
 }
 
@@ -69,6 +82,26 @@ fn discover_tests(tests_dir: &Path) -> Vec<TestCase> {
 
     tests.sort_by(|a, b| a.input_file.cmp(&b.input_file));
     tests
+}
+
+fn filter_tests(tests: Vec<TestCase>, test_number: &str) -> Option<Vec<TestCase>> {
+    let normalized = normalize_test_number(test_number);
+    let filtered: Vec<TestCase> = tests
+        .into_iter()
+        .filter(|t| {
+            if let Some(num) = extract_test_number(&t.input_file) {
+                normalize_test_number(&num) == normalized
+            } else {
+                false
+            }
+        })
+        .collect();
+
+    if filtered.is_empty() {
+        None
+    } else {
+        Some(filtered)
+    }
 }
 
 fn run_test(executable: &Path, input_path: &Path, output_path: &Path, timeout_ms: u64) -> bool {
@@ -136,6 +169,18 @@ fn main() {
 
     let tests = discover_tests(tests_dir);
 
+    let tests = if let Some(ref test_num) = args.test_number {
+        match filter_tests(tests, test_num) {
+            Some(filtered) => filtered,
+            None => {
+                eprintln!("Error: Test '{}' not found in '{}'", test_num, args.tests_dir);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        tests
+    };
+
     if tests.is_empty() {
         println!("No tests found");
         std::process::exit(0);
@@ -194,6 +239,50 @@ mod tests {
         assert_eq!(extract_test_number("test.in"), None);
         assert_eq!(extract_test_number("test_12.in"), None);
         assert_eq!(extract_test_number("abc_test.in"), None);
+    }
+
+    #[test]
+    fn test_normalize_test_number() {
+        assert_eq!(normalize_test_number("001"), "1");
+        assert_eq!(normalize_test_number("012"), "12");
+        assert_eq!(normalize_test_number("123"), "123");
+        assert_eq!(normalize_test_number("0"), "0");
+    }
+
+    #[test]
+    fn test_filter_tests_finds_single() {
+        let tests = vec![
+            TestCase {
+                input_file: "01_test_001.in".into(),
+                output_file: "01_test_001.out".into(),
+            },
+            TestCase {
+                input_file: "02_test_002.in".into(),
+                output_file: "02_test_002.out".into(),
+            },
+        ];
+        let result = filter_tests(tests, "1");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_filter_tests_zero_padded_agnostic() {
+        let tests = vec![TestCase {
+            input_file: "01_test_001.in".into(),
+            output_file: "01_test_001.out".into(),
+        }];
+        assert!(filter_tests(tests.clone(), "1").is_some());
+        assert!(filter_tests(tests, "001").is_some());
+    }
+
+    #[test]
+    fn test_filter_tests_not_found() {
+        let tests = vec![TestCase {
+            input_file: "01_test_001.in".into(),
+            output_file: "01_test_001.out".into(),
+        }];
+        assert!(filter_tests(tests, "999").is_none());
     }
 
     fn project_root() -> PathBuf {
