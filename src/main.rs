@@ -1,4 +1,5 @@
 use clap::Parser;
+use colored::Colorize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -153,15 +154,20 @@ fn main() {
         let result = run_test(executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
 
         if result {
-            println!("test {} ... ok", test_name);
+            println!("test {} ... {}", test_name, "ok".green());
             passed += 1;
         } else {
-            println!("test {} ... FAILED", test_name);
+            println!("test {} ... {}", test_name, "FAILED".red());
             failed += 1;
         }
     }
 
-    println!("\ntest result: {} passed; {} failed", passed, failed);
+    println!(
+        "\n{}: {} passed; {}",
+        "test result".white(),
+        format!("{}", passed).green(),
+        format!("{} failed", failed).red()
+    );
 
     if failed > 0 {
         std::process::exit(1);
