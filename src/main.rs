@@ -215,6 +215,9 @@ fn main() {
         std::process::exit(1);
     }
 
+    let executable = executable.canonicalize()
+        .expect("Failed to resolve executable path");
+
     let tests_dir = Path::new(&args.tests_dir);
     if !tests_dir.is_dir() {
         eprintln!("Error: Tests directory '{}' not found", args.tests_dir);
@@ -250,7 +253,7 @@ fn main() {
         let output_path = tests_dir.join(&test.output_file);
 
         let test_name = test.input_file.replace(".in", "");
-        let result = run_test(executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
+        let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
 
         if result.passed {
             println!("test {} ... {}", test_name, "ok".green());
