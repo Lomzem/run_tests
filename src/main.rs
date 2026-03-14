@@ -49,10 +49,9 @@ fn discover_tests(tests_dir: &Path) -> Vec<TestCase> {
                 if let Some(num) = extract_test_number(filename) {
                     in_files.insert(num, filename.to_string());
                 }
-            } else if filename.ends_with(".out") {
-                if let Some(num) = extract_test_number(filename) {
-                    out_files.insert(num, filename.to_string());
-                }
+            } else if filename.ends_with(".out")
+                && let Some(num) = extract_test_number(filename) {
+                out_files.insert(num, filename.to_string());
             }
         }
     }
