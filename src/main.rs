@@ -21,12 +21,23 @@ struct Args {
 
     #[arg(help = "Specific test number to run (zero-padded agnostic)")]
     test_number: Option<String>,
+
+    #[arg(long, help = "Don't show expected vs actual diff on failure")]
+    no_diff: bool,
 }
 
 #[derive(Clone)]
 struct TestCase {
     input_file: String,
     output_file: String,
+}
+
+struct TestResult {
+    passed: bool,
+    expected: Vec<u8>,
+    actual: Vec<u8>,
+    stderr: Vec<u8>,
+    timed_out: bool,
 }
 
 fn extract_test_number(filename: &str) -> Option<String> {
@@ -104,7 +115,7 @@ fn filter_tests(tests: Vec<TestCase>, test_number: &str) -> Option<Vec<TestCase>
     }
 }
 
-fn run_test(executable: &Path, input_path: &Path, output_path: &Path, timeout_ms: u64) -> bool {
+fn run_test(executable: &Path, input_path: &Path, output_path: &Path, timeout_ms: u64) -> TestResult {
     let input_content = fs::read(input_path).expect("Failed to read input file");
     let expected_output = fs::read(output_path).expect("Failed to read output file");
 
@@ -122,14 +133,28 @@ fn run_test(executable: &Path, input_path: &Path, output_path: &Path, timeout_ms
         }
     }
 
-    let status = match child.wait_timeout(Duration::from_millis(timeout_ms)) {
-        Ok(Some(s)) => s,
+    let (timed_out, status) = match child.wait_timeout(Duration::from_millis(timeout_ms)) {
+        Ok(Some(s)) => (false, s),
         Ok(None) => {
             let _ = child.kill();
             let _ = child.wait();
-            return false;
+            return TestResult {
+                passed: false,
+                expected: expected_output,
+                actual: Vec::new(),
+                stderr: Vec::new(),
+                timed_out: true,
+            };
         }
-        Err(_) => return false,
+        Err(_) => {
+            return TestResult {
+                passed: false,
+                expected: expected_output,
+                actual: Vec::new(),
+                stderr: Vec::new(),
+                timed_out: true,
+            };
+        }
     };
 
     use std::io::Read;
@@ -143,11 +168,42 @@ fn run_test(executable: &Path, input_path: &Path, output_path: &Path, timeout_ms
         stderr.read_to_end(&mut stderr_buf).unwrap();
     }
 
-    if !status.success() || !stderr_buf.is_empty() {
-        return false;
+    let passed = status.success() && stderr_buf.is_empty() && stdout_buf == expected_output;
+
+    TestResult {
+        passed,
+        expected: expected_output,
+        actual: stdout_buf,
+        stderr: stderr_buf,
+        timed_out,
+    }
+}
+
+fn print_diff(expected: &[u8], actual: &[u8]) {
+    let expected_str = String::from_utf8_lossy(expected);
+    let actual_str = String::from_utf8_lossy(actual);
+
+    let expected_lines: Vec<&str> = expected_str.lines().collect();
+    let actual_lines: Vec<&str> = actual_str.lines().collect();
+
+    println!("    {}", "expected:".green());
+    for (i, line) in expected_lines.iter().enumerate() {
+        println!("{:>4} | {}", i + 1, line.green());
     }
 
-    stdout_buf == expected_output
+    println!("    {}", "actual:".red());
+    for (i, line) in actual_lines.iter().enumerate() {
+        println!("{:>4} | {}", i + 1, line.red());
+    }
+
+    if expected_lines.len() != actual_lines.len() {
+        println!(
+            "    {}: expected {} line(s), got {}",
+            "diff".yellow(),
+            expected_lines.len(),
+            actual_lines.len()
+        );
+    }
 }
 
 fn main() {
@@ -196,11 +252,24 @@ fn main() {
         let test_name = test.input_file.replace(".in", "");
         let result = run_test(executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
 
-        if result {
+        if result.passed {
             println!("test {} ... {}", test_name, "ok".green());
             passed += 1;
         } else {
             println!("test {} ... {}", test_name, "FAILED".red());
+            if !args.no_diff {
+                print_diff(&result.expected, &result.actual);
+            }
+            if !result.stderr.is_empty() {
+                let stderr_str = String::from_utf8_lossy(&result.stderr);
+                println!("    {}", "stderr:".red());
+                for line in stderr_str.lines() {
+                    println!("      {}", line.red());
+                }
+            }
+            if result.timed_out {
+                println!("    {}", "test timed out".yellow());
+            }
             failed += 1;
         }
     }
@@ -313,7 +382,7 @@ mod tests {
         let output_path = root.join("tests/fixtures/01_test_001.out");
 
         let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
-        assert!(result, "Test should pass when output matches");
+        assert!(result.passed, "Test should pass when output matches");
     }
 
     #[test]
@@ -324,7 +393,7 @@ mod tests {
         let output_path = root.join("tests/fixtures/02_test_002.out");
 
         let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
-        assert!(!result, "Test should fail when output does not match");
+        assert!(!result.passed, "Test should fail when output does not match");
     }
 
     #[test]
@@ -335,6 +404,6 @@ mod tests {
         let output_path = root.join("tests/fixtures/03_test_003.out");
 
         let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
-        assert!(!result, "Test should fail when exit code is non-zero");
+        assert!(!result.passed, "Test should fail when exit code is non-zero");
     }
 }
