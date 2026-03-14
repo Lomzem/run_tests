@@ -40,11 +40,10 @@ test test_001 ... ok
 test test_002 ... ok
 test test_003 ... FAILED
     expected:
-   1 | hello world
-   2 | 
+   1 | foo
+   2 | bar
     actual:
-   1 | hello world
-   2 | goodbye
+   1 | baz
     diff: expected 2 line(s), got 1
 
 test result: 2 passed; 1 failed
