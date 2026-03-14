@@ -12,6 +12,10 @@ run_tests <executable> <tests_dir> [test_number]
 - `tests_dir`: Directory containing `.in` and `.out` test files
 - `test_number` (optional): Run a specific test
 
+### Flags
+
+- `--no-diff`: Don't show expected vs actual diff on failure
+
 ## Test File Format
 
 Test files should be named with a 3-digit suffix:
@@ -35,6 +39,13 @@ Running 3 test(s)...
 test test_001 ... ok
 test test_002 ... ok
 test test_003 ... FAILED
+    expected:
+   1 | hello world
+   2 | 
+    actual:
+   1 | hello world
+   2 | goodbye
+    diff: expected 2 line(s), got 1
 
 test result: 2 passed; 1 failed
 ```
