@@ -168,3 +168,81 @@ fn main() {
         std::process::exit(1);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn test_extract_test_number() {
+        assert_eq!(
+            extract_test_number("03_test_001.in"),
+            Some("001".to_string())
+        );
+        assert_eq!(extract_test_number("foo_123.out"), Some("123".to_string()));
+        assert_eq!(extract_test_number("test_999.in"), Some("999".to_string()));
+    }
+
+    #[test]
+    fn test_extract_test_number_invalid() {
+        assert_eq!(extract_test_number("test.in"), None);
+        assert_eq!(extract_test_number("test_12.in"), None);
+        assert_eq!(extract_test_number("abc_test.in"), None);
+    }
+
+    fn project_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf()
+    }
+
+    #[test]
+    fn test_discover_tests() {
+        let tests_dir = project_root().join("tests/fixtures");
+        let tests = discover_tests(&tests_dir);
+
+        assert_eq!(tests.len(), 3);
+        assert_eq!(tests[0].input_file, "01_test_001.in");
+        assert_eq!(tests[0].output_file, "01_test_001.out");
+    }
+
+    #[test]
+    fn test_discover_tests_skips_unpaired() {
+        let tests_dir = project_root().join("tests/fixtures");
+        let tests = discover_tests(&tests_dir);
+
+        assert!(tests.len() >= 3);
+    }
+
+    #[test]
+    fn test_run_test_passes() {
+        let root = project_root();
+        let executable = root.join("tests/echo_correct.sh");
+        let input_path = root.join("tests/fixtures/01_test_001.in");
+        let output_path = root.join("tests/fixtures/01_test_001.out");
+
+        let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
+        assert!(result, "Test should pass when output matches");
+    }
+
+    #[test]
+    fn test_run_test_fails_wrong_output() {
+        let root = project_root();
+        let executable = root.join("tests/echo_wrong.sh");
+        let input_path = root.join("tests/fixtures/02_test_002.in");
+        let output_path = root.join("tests/fixtures/02_test_002.out");
+
+        let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
+        assert!(!result, "Test should fail when output does not match");
+    }
+
+    #[test]
+    fn test_run_test_fails_nonzero_exit() {
+        let root = project_root();
+        let executable = root.join("tests/exit_fail.sh");
+        let input_path = root.join("tests/fixtures/03_test_003.in");
+        let output_path = root.join("tests/fixtures/03_test_003.out");
+
+        let result = run_test(&executable, &input_path, &output_path, DEFAULT_TIMEOUT_MS);
+        assert!(!result, "Test should fail when exit code is non-zero");
+    }
+}
