@@ -186,13 +186,26 @@ fn print_diff(expected: &[u8], actual: &[u8]) {
     let expected_lines: Vec<&str> = expected_str.lines().collect();
     let actual_lines: Vec<&str> = actual_str.lines().collect();
 
+    let expected_has_newline = expected.ends_with(b"\n");
+    let actual_has_newline = actual.ends_with(b"\n");
+
     println!("    {}", "expected:".green());
     for (i, line) in expected_lines.iter().enumerate() {
+        let line = if i == expected_lines.len() - 1 && expected_has_newline && !actual_has_newline {
+            format!("{}\u{21B5}", line)
+        } else {
+            line.to_string()
+        };
         println!("{:>4} | {}", i + 1, line.green());
     }
 
     println!("    {}", "actual:".red());
     for (i, line) in actual_lines.iter().enumerate() {
+        let line = if i == actual_lines.len() - 1 && actual_has_newline && !expected_has_newline {
+            format!("{}\u{21B5}", line)
+        } else {
+            line.to_string()
+        };
         println!("{:>4} | {}", i + 1, line.red());
     }
 
