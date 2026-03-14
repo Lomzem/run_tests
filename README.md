@@ -27,6 +27,18 @@ run_tests ./my_program tests/
 run_tests ./my_program tests/ 1
 ```
 
+## Output
+
+```
+Running 3 test(s)...
+
+test test_001 ... ok
+test test_002 ... ok
+test test_003 ... FAILED
+
+test result: 2 passed; 1 failed
+```
+
 ## Build
 
 ```bash
