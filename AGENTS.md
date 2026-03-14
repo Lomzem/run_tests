@@ -1,0 +1,1 @@
+- For `git` commit messages, ALWAYS use **conventional commit messages**.
